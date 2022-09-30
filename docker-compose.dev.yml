@@ -1,0 +1,51 @@
+version: '3.4'
+services:
+  traefik:
+    image: "traefik:2.2"
+    container_name: traefik
+    restart: always
+    command:
+      - "--api=true"
+      - "--providers.docker=true"
+      - "--providers.docker.network=${COMPOSE_PROJECT_NAME}_web"
+      - "--providers.docker.watch=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.api.rule=Host(`traefik.${DOMAIN:?err}`)
+      - traefik.http.routers.api.service=api@internal
+    ports:
+      - "80:80"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - web
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    restart: always
+    volumes:
+      - minio_storage_data:/data
+    environment:
+      MINIO_DOMAIN: ${DOMAIN:?err}
+      MINIO_BROWSER: ${BROWSER:?err}
+      MINIO_REGION_NAME: ${REGION:?err}
+      MINIO_ACCESS_KEY: ${ACCESS_KEY:?err}
+      MINIO_SECRET_KEY: ${SECRET_KEY:?err}
+      MINIO_API_CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN:-''}
+    command: [ "server", "${DATA_COMMAND:-/data}" ]
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.minio.loadbalancer.server.port=9000
+      - traefik.http.routers.minio.rule=Host(`${DOMAIN:?err}`)
+    networks:
+      - web
+
+networks:
+  web:
+    driver: bridge
+
+volumes:
+  minio_storage_data:
